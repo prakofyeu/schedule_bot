@@ -1,7 +1,7 @@
 import os
 from telegram import Bot, Update
-from datetime import date, datetime
-from crud import get_task_by_date, create_task
+from datetime import date, datetime, time
+from crud import get_task_by_date, create_task, get_all_tasks
 from dotenv import load_dotenv
 from telegram.ext import ContextTypes, Application, CommandHandler
 
@@ -32,12 +32,25 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today = date.today()
-    tasks = await get_task_by_date(today)
+    tasks = await get_task_by_date(update.effective_user.id, today)
     
     if not tasks:
         message = "сегодня задач нет"
     else:
         message = "Задачи на сегодня: \n\n"
+        for task in tasks:
+            message += f"Задача: {task.name}" + "\n"
+            message += f"Время: {str(task.time)}"
+            
+    await update.message.reply_text(message)
+    
+async def all_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tasks = await get_all_tasks(update.effective_user.id)
+    
+    if not tasks:
+        message = "задач нет"
+    else:
+        message = "Задачи: \n\n"
         for task in tasks:
             message += f"Задача: {task.name}" + "\n"
             message += f"Время: {str(task.time)}"
@@ -59,12 +72,12 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         try:
-            time = datetime.strptime(task_time, "%H:%M")
+            task_time = time(int(task_time[:2]), int(task_time[3:]))
         except ValueError:
             await update.message.reply_text("Время должно быть в формате HH:MM")
             return
         
-        await create_task(date, time, task_name)
+        await create_task(update.effective_user.id,date, task_time, task_name)
         await update.message.reply_text("Задача добавлена ")
     except Exception as e:
          await update.message.reply_text(f"Возникла ошибка {e}")
@@ -76,4 +89,5 @@ def run_bot():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add))
     app.add_handler(CommandHandler("today", today))  
+    app.add_handler(CommandHandler("all", all_tasks)) 
     app.run_polling()
